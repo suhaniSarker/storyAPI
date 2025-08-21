@@ -1,86 +1,70 @@
-const express = require('express');
-const mongoose = require('mongoose');
-require('dotenv').config();
+import mongoose from "mongoose";
 
-const app = express();
-app.use(express.json());
+let isConnected = false;
 
-// ================== DATABASE CONNECTION ==================
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log("✅ MongoDB connected"))
-.catch(err => console.error("❌ MongoDB connection error:", err));
-
-// ================== SCHEMA & MODEL ==================
-const PostSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  content: String,
-  image: String,
-  video: String,
-  link: String
-}, { timestamps: true });
-
-const Post = mongoose.model("Post", PostSchema);
-
-// ================== CRUD ROUTES ==================
-
-// CREATE a post
-app.post('/api/posts', async (req, res) => {
+// DB Connection
+async function connectDB() {
+  if (isConnected) return;
   try {
-    const post = new Post(req.body);
-    await post.save();
-    res.status(201).json({ success: true, data: post });
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    isConnected = conn.connections[0].readyState === 1;
+    console.log("✅ MongoDB connected");
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    console.error("❌ MongoDB connection error:", err);
+    throw err;
   }
-});
+}
 
-// READ ALL posts
-app.get('/api/posts', async (req, res) => {
+// Schema + Model
+const PostSchema = new mongoose.Schema(
+  {
+    content: String,
+    image: String,
+    video: String,
+    link: String,
+  },
+  { timestamps: true }
+);
+
+const Post = mongoose.models.Post || mongoose.model("Post", PostSchema);
+
+// API Handler
+export default async function handler(req, res) {
+  await connectDB();
+  const { method, query, body } = req;
+
   try {
-    const posts = await Post.find().sort({ createdAt: -1 });
-    res.json({ success: true, data: posts });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+    if (method === "GET") {
+      if (query.id) {
+        const post = await Post.findById(query.id);
+        if (!post) return res.status(404).json({ success: false, error: "Not found" });
+        return res.json({ success: true, data: post });
+      }
+      const posts = await Post.find().sort({ createdAt: -1 });
+      return res.json({ success: true, data: posts });
+    }
 
-// READ ONE post by ID
-app.get('/api/posts/:id', async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ success: false, error: "Post not found" });
-    res.json({ success: true, data: post });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+    if (method === "POST") {
+      const post = new Post(body);
+      await post.save();
+      return res.status(201).json({ success: true, data: post });
+    }
 
-// UPDATE a post
-app.put('/api/posts/:id', async (req, res) => {
-  try {
-    const post = await Post.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!post) return res.status(404).json({ success: false, error: "Post not found" });
-    res.json({ success: true, data: post });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
-  }
-});
+    if (method === "PUT") {
+      const post = await Post.findByIdAndUpdate(query.id, body, { new: true });
+      return res.json({ success: true, data: post });
+    }
 
-// DELETE a post
-app.delete('/api/posts/:id', async (req, res) => {
-  try {
-    const post = await Post.findByIdAndDelete(req.params.id);
-    if (!post) return res.status(404).json({ success: false, error: "Post not found" });
-    res.json({ success: true, message: "Post deleted" });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+    if (method === "DELETE") {
+      await Post.findByIdAndDelete(query.id);
+      return res.json({ success: true });
+    }
 
-// ================== START SERVER ==================
-// (In Vercel, this part is ignored, only used in local dev)
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    return res.status(405).json({ success: false, error: "Method not allowed" });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
