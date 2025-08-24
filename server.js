@@ -1,36 +1,25 @@
-import mongoose from "mongoose";
-
-let isConnected = false;
-
-// DB Connection
-async function connectDB() {
-  if (isConnected) return;
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    isConnected = conn.connections[0].readyState === 1;
-    console.log("✅ MongoDB connected");
-  } catch (err) {
-    console.error("❌ MongoDB connection error:", err);
-    throw err;
-  }
-}
-
 // Schema + Model
 const PostSchema = new mongoose.Schema(
   {
+    title: String,
     content: String,
+    author_code: String,
+    tags: [String],
+    blog_code: String,
+    meta_title: String,
+    meta_description: String,
+    meta_keywords: String,
+    status: { type: String, default: "draft" },
     image: String,
     video: String,
-    link: String,
+    link: String
   },
   { timestamps: true }
 );
 
 // Force collection name = "mature"
-const Post = mongoose.models.Post || mongoose.model("Post", PostSchema, "mature");
+const Post = mongoose.models.storyDB || mongoose.model("storyDB", PostSchema, "mature");
+
 
 // API Handler
 export default async function handler(req, res) {
@@ -69,4 +58,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
+
 
