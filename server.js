@@ -29,7 +29,8 @@ const PostSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Post = mongoose.models.Post || mongoose.model("Post", PostSchema);
+// Force collection name = "mature"
+const Post = mongoose.models.Post || mongoose.model("Post", PostSchema, "mature");
 
 // API Handler
 export default async function handler(req, res) {
@@ -68,3 +69,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
+
